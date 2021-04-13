@@ -20,6 +20,10 @@ type ChaoxingProvider struct {
 	UserID       string       `json:"uid"`
 	CourseID     string       `json:"courseid"`
 	ClassID      string       `json:"classid"`
+	Name         string       `json:"name"`
+	Latitude     string       `json:"latitude"`
+	Longitude    string       `json:"longitude"`
+	Address      string       `json:"address"`
 	TaskInterval int          `json:"interval"`
 	TaskTime     []ActiveTime `json:"tasktime"`
 	Verbose      bool         `json:"verbose"`

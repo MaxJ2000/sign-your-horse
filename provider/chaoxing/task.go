@@ -2,6 +2,7 @@ package chaoxing
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"sign-your-horse/common"
 	"strings"
@@ -13,6 +14,8 @@ import (
 func (c *ChaoxingProvider) Task() {
 	extractTasksRegex := regexp.MustCompile(`activeDetail\(\d+,`)
 	extrackTaskIDRegex := regexp.MustCompile(`\d+`)
+	extrackTasksTypeRegex := regexp.MustCompile(`<a href="javascript:;" shape="rect">.*</a>`)
+	extrackTaskTypeRegex := regexp.MustCompile(`>(.*)<`)
 
 	r := req.New()
 	tasks, err := r.Get(
@@ -39,22 +42,35 @@ func (c *ChaoxingProvider) Task() {
 		}
 		taskListString = taskListString[:finishedSepIndex]
 		tasksString := extractTasksRegex.FindAll([]byte(taskListString), -1)
+		tasksTypeString := extrackTasksTypeRegex.FindAll([]byte(taskListString), -1)
 		if len(tasksString) == 0 && c.Verbose {
 			common.LogWithModule(c.Alias, " no task in list at %s", time.Now().String())
 		} else {
-			for _, task := range tasksString {
+			for i, task := range tasksString {
+				taskTypeArr := extrackTaskTypeRegex.FindSubmatch(tasksTypeString[i])
+				taskType := ""
+				if len(taskTypeArr) > 1 {
+					taskType = string(taskTypeArr[1])
+				}
 				taskID := extrackTaskIDRegex.Find(task)
+				var request string
+				if taskType == "位置签到" && c.Latitude != "" && c.Longitude != "" && c.Address != "" {
+					request = fmt.Sprintf("https://mobilelearn.chaoxing.com/pptSign/stuSignajax?name=%s&address=%s&activeId=%s&uid=%s&clientip=&useragent=&latitude=%s&longitude=%s&fid=0&appType=15", url.PathEscape(c.Name), url.PathEscape(c.Address), string(taskID), c.UserID, c.Latitude, c.Longitude)
+				} else {
+					request = fmt.Sprintf("https://mobilelearn.chaoxing.com/pptSign/stuSignajax?name=&activeId=%s&uid=%s&clientip=&useragent=&latitude=-1&longitude=-1&fid=0&appType=15", string(taskID), c.UserID)
+				}
+				time.Sleep(time.Second * time.Duration(c.TaskInterval))
 				resp, err := r.Get(
-					fmt.Sprintf("https://mobilelearn.chaoxing.com/pptSign/stuSignajax?name=&activeId=%s&uid=%s&clientip=&useragent=&latitude=-1&longitude=-1&fid=0&appType=15", string(taskID), c.UserID),
+					request,
 					req.Header{
 						"Cookie":     c.Cookie,
 						"User-Agent": c.UserAgent,
 					},
 				)
 				if err != nil {
-					c.PushMessageWithAlias("task " + string(taskID) + " sign in failed: " + err.Error())
+					c.PushMessageWithAlias("task " + taskType + " " + string(taskID) + " sign in failed: " + err.Error())
 				} else {
-					c.PushMessageWithAlias("task " + string(taskID) + " sign in result: " + resp.String())
+					c.PushMessageWithAlias("task " + taskType + " " + string(taskID) + " sign in result: " + resp.String())
 				}
 			}
 		}
